@@ -1,36 +1,15 @@
-- hosts: all
-  tasks:
-  - name: update os
-    yum:
-      name: '*'
-      state: present
-  - name: install docker
-    command: amazon-linux-extras install docker=latest -y
-  - name: start docker
-    service:
-      name: docker
-      state: started
-      enabled: yes
-  - name: add ec2-user to docker group
-    shell: "usermod -a -G docker ec2-user"
-  - name: install docker compose.
-    get_url:
-      url: https://github.com/docker/compose/releases/download/1.26.2/docker-compose-Linux-x86_64
-      dest: /usr/local/bin/docker-compose
-      mode: 0755
-  - name: uninstall aws cli v1
-    file:
-      path: /bin/aws
-      state: absent
-  - name: download awscliv2 installer
-    unarchive:
-      src: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
-      dest: /tmp
-      remote_src: yes
-      creates: /tmp/aws
-      mode: 0755
-  - name: run the installer
-    command:
-    args:
-      cmd: "/tmp/aws/install"
-      creates: /usr/local/bin/aws
+APP_NAME="Petclinic"
+CFN_KEYPAIR="call-ansible-test-dev.key"
+PATH="$PATH:/usr/local/bin"
+export ANSIBLE_PRIVATE_KEY_FILE="${WORKSPACE}/${CFN_KEYPAIR}"
+export ANSIBLE_HOST_KEY_CHECKING=False
+export APP_STACK_NAME="Call-$APP_NAME-App-${BUILD_NUMBER}"
+sed -i "s/APP_STACK_NAME/$APP_STACK_NAME/" ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml
+# Swarm Setup for all nodes (instances)
+ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_setup_for_all_docker_swarm_instances.yaml
+# Swarm Setup for Grand Master node
+ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_initialize_docker_swarm.yaml
+# Swarm Setup for Other Managers nodes
+ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_managers.yaml
+# Swarm Setup for Workers nodes
+ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_workers.yaml
